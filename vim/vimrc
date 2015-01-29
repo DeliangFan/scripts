@@ -5,7 +5,7 @@ set incsearch
 set autochdir                                                                                                                                                                      
 set tags=./tags,tags;$HOME                                                                                                                                                         
                                                                                                                                                                                    
-nmap  <F5> :silent! Tlist<CR>                                                                                                                                                       
+nmap <F5> :silent! Tlist<CR>                                                                                                                                                       
 nmap <F3> :vertical resize +3<CR>                                                                                                                                                  
 nmap <F4> :vertical resize -3<CR>                                                                                                                                                  
 nmap <F6> :resize +3<CR>                                                                                                                                                           
