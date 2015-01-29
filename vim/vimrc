@@ -1,0 +1,21 @@
+set tabstop=4                                                                                                                                                                      
+set expandtab                                                                                                                                                                      
+set hlsearch                                                                                                                                                                       
+set incsearch                                                                                                                                                                      
+set autochdir                                                                                                                                                                      
+set tags=./tags,tags;$HOME                                                                                                                                                         
+                                                                                                                                                                                   
+map  <F5> :silent! Tlist<CR>                                                                                                                                                       
+nmap <F3> :vertical resize +3<CR>                                                                                                                                                  
+nmap <F4> :vertical resize -3<CR>                                                                                                                                                  
+nmap <F6> :resize +3<CR>                                                                                                                                                           
+nmap <F7> :resize -3<CR>                                                                                                                                                           
+                                                                                                                                                                                   
+let Tlist_Show_One_File=1                                                                                                                                                          
+let Tlist_Auto_Open=1                                                                                                                                                              
+let Tlist_Ctags_Cmd='ctags'                                                                                                                                                        
+let Tlist_Use_Right_Window=1                                                                                                                                                       
+let Tlist_File_Fold_Auto_Close=1                                                                                                                                                   
+let Tlist_Exit_OnlyWindow=1                                                                                                                                                        
+let Tlist_Process_File_Always=0                                                                                                                                                    
+let Tlist_Inc_Winwidth=0
