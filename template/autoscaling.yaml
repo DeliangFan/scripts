@@ -1,0 +1,203 @@
+heat_template_version: 2013-05-23
+
+description: Letv autoScaling
+
+parameters:
+  image:
+    type: string
+    description: Image used for servers
+    default: image
+  flavor:
+    type: string
+    description: flavor used by the web servers
+    default: flavor
+  network:
+    type: string
+    description: Network used by the server
+    default: network 
+  subnet_id:
+    type: string
+    description: subnet on which the load balancer will be located
+    default: subnet 
+  availability_zone:
+    type: string
+    description: availability_zone where the instance located
+    default: AZ 
+
+resources:
+  db:
+    type: OS::Nova::Server
+    properties:
+      flavor: {get_param: flavor}
+      image: {get_param: image}
+      availability_zone: {get_param: availability_zone}
+      networks: [{network: {get_param: network} }]
+      user_data_format: RAW
+      user_data: |
+        #!/bin/bash -v
+        echo "nameserver 202.106.0.20" >> /etc/resolv.conf
+        sed -i "/192/d" /etc/resolv.conf
+        yum -y install mysql mysql-server MySQL-python
+        service mysqld start
+        mysqladmin -u root password 123456
+        cat << EOF | mysql -u root --password=123456
+        CREATE DATABASE wordpress;
+        GRANT ALL PRIVILEGES ON wordpress.* TO "wordpress"@"%" IDENTIFIED BY "123456";
+        FLUSH PRIVILEGES;
+        EXIT
+        EOF
+
+  asg:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      min_size: 1
+      max_size: 5 
+      resource:
+        type: lb_server.yaml
+        properties:
+          flavor: {get_param: flavor}
+          image: {get_param: image}
+          network: {get_param: network}
+          pool_id1: {get_resource: pool1}
+          pool_id2: {get_resource: pool2}
+          pool_id3: {get_resource: pool3}
+          availability_zone: {get_param: availability_zone}
+          metadata: {"metering.stack": {get_param: "OS::stack_id"}}
+          user_data: 
+            str_replace:
+              template: |
+                #!/bin/bash
+                echo "nameserver 202.106.0.20" >> /etc/resolv.conf
+                sed -i "/192/d" /etc/resolv.conf
+                rpm -ivh http://openstack.oss.letv.cn/repo/letv-rdo-release-icehouse-5.0.noarch.rpm
+                rm -rf /etc/yum.repos.d/CentOS-Ceph.repo
+                yum -y install httpd wordpress
+                service httpd start
+                setsebool -P httpd_can_network_connect_db=1
+                sed -i "/Deny from All/d" /etc/httpd/conf.d/wordpress.conf
+                sed -i "/Deny from.*/d" /etc/httpd/conf.d/wordpress.conf
+                sed -i "s/Require local/Require all granted/" /etc/httpd/conf.d/wordpress.conf
+                sed -i "/Apache 2.*/a     Allow from all"  /etc/httpd/conf.d/wordpress.conf 
+                sed -i s/database_name_here/wordpress/ /etc/wordpress/wp-config.php
+                sed -i s/username_here/wordpress/ /etc/wordpress/wp-config.php
+                sed -i s/password_here/123456/ /etc/wordpress/wp-config.php
+                sed -i s/localhost/$db_host/ /etc/wordpress/wp-config.php
+                service httpd restart
+                service httpd restart
+              params:
+                $db_host: {get_attr: [db, first_address]}
+
+  web_server_scaleup_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: {get_resource: asg}
+      cooldown: 60
+      scaling_adjustment: 1
+
+  web_server_scaledown_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: {get_resource: asg}
+      cooldown: 60
+      scaling_adjustment: -1
+
+  cpu_alarm_high:
+    type: OS::Ceilometer::Alarm
+    properties:
+      description: Scale-up if the average CPU > 50% for 1 minute
+      meter_name: cpu_util
+      statistic: avg
+      repeat_actions: true
+      period: 120
+      evaluation_periods: 1 
+      threshold: 10
+      alarm_actions:
+        - {get_attr: [web_server_scaleup_policy, alarm_url]}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: gt
+
+  cpu_alarm_low:
+    type: OS::Ceilometer::Alarm
+    properties:
+      description: Scale-down if the average CPU < 15% for 10 minutes
+      meter_name: cpu_util
+      repeat_actions: true
+      statistic: avg
+      period: 300
+      evaluation_periods: 1 
+      threshold: 3 
+      alarm_actions:
+        - {get_attr: [web_server_scaledown_policy, alarm_url]}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: lt
+
+  monitor1:
+    type: OS::Neutron::HealthMonitor
+    properties:
+      type: TCP
+      delay: 5
+      max_retries: 5
+      timeout: 5
+
+  pool1:
+    type: OS::Neutron::Pool
+    properties:
+      protocol: HTTP
+      monitors: [{get_resource: monitor1}]
+      subnet_id: {get_param: subnet_id}
+      lb_method: ROUND_ROBIN
+      vip:
+        protocol_port: 80
+  lb1:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      protocol_port: 80
+      pool_id: {get_resource: pool1}
+
+  monitor2:
+    type: OS::Neutron::HealthMonitor
+    properties:
+      type: TCP
+      delay: 5
+      max_retries: 5
+      timeout: 5
+
+  pool2:
+    type: OS::Neutron::Pool
+    properties:
+      protocol: HTTP
+      monitors: [{get_resource: monitor2}]
+      subnet_id: {get_param: subnet_id}
+      lb_method: ROUND_ROBIN
+      vip:
+        protocol_port: 80
+  lb2:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      protocol_port: 80
+      pool_id: {get_resource: pool2}
+
+  monitor3:
+    type: OS::Neutron::HealthMonitor
+    properties:
+      type: TCP
+      delay: 5
+      max_retries: 5
+      timeout: 5
+
+  pool3:
+    type: OS::Neutron::Pool
+    properties:
+      protocol: HTTP
+      monitors: [{get_resource: monitor3}]
+      subnet_id: {get_param: subnet_id}
+      lb_method: ROUND_ROBIN
+      vip:
+        protocol_port: 80
+  lb3:
+    type: OS::Neutron::LoadBalancer
+    properties:
+      protocol_port: 80
+      pool_id: {get_resource: pool3}
