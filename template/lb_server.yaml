@@ -1,0 +1,59 @@
+heat_template_version: 2013-05-23
+description: A load-balancer server
+parameters:
+  image:
+    type: string
+    description: Image used for servers
+  flavor:
+    type: string
+    description: flavor used by the servers
+  pool_id1:
+    type: string
+    description: Pool to contact
+  pool_id2:
+    type: string
+    description: Pool to contact
+  pool_id3:
+    type: string
+    description: Pool to contact
+  user_data:
+    type: string
+    description: Server user_data
+  metadata:
+    type: json
+  network:
+    type: string
+    description: Network used by the server
+  availability_zone:
+    type: string
+    description: Availability zone where the instance will located
+
+resources:
+  server:
+    type: OS::Nova::Server
+    properties:
+      flavor: {get_param: flavor}
+      image: {get_param: image}
+      availability_zone: {get_param: availability_zone}
+      user_data: {get_param: user_data}
+      metadata: {get_param: metadata}
+      user_data_format: RAW
+      networks: [{network: {get_param: network} }]
+  member1:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: {get_param: pool_id1}
+      address: {get_attr: [server, first_address]}
+      protocol_port: 80
+  member2:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: {get_param: pool_id2}
+      address: {get_attr: [server, first_address]}
+      protocol_port: 80
+  member3:
+    type: OS::Neutron::PoolMember
+    properties:
+      pool_id: {get_param: pool_id3}
+      address: {get_attr: [server, first_address]}
+      protocol_port: 80
