@@ -10,6 +10,7 @@ nmap <F3> :vertical resize +3<CR>
 nmap <F4> :vertical resize -3<CR>
 nmap <F6> :resize +3<CR>
 nmap <F7> :resize -3<CR>
+nmap <F2> :NERDTree<CR>
 
 let Tlist_Show_One_File=1
 let Tlist_Auto_Open=1
